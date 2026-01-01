@@ -62,24 +62,34 @@ lightweight markers:
 ### 1. Installation
 
 ``` bash
-# Save the script
-nano ~/fvp_tui.py
-# (paste the code)
-chmod +x ~/fvp_tui.py
+# Clone the repository
+git clone https://github.com/youruser/fvp.git
+cd fvp
+
+# Run with uv (recommended)
+uv run fvp
 ```
 
-Optionally link it:
+Or install as a tool:
 
 ``` bash
-ln -s ~/fvp_tui.py /usr/local/bin/fvp
+uv tool install .
+fvp
 ```
 
 ### 2. Run
 
 ``` bash
-fvp
-# or
-python3 fvp_tui.py -f ~/projects/mylist.txt
+# Launch TUI (default)
+uv run fvp
+
+# Use a custom file
+uv run fvp -f ~/projects/mylist.txt
+
+# CLI subcommands
+uv run fvp list
+uv run fvp add "New task"
+uv run fvp done 3
 ```
 
 The app creates your list file if it doesn't exist:
