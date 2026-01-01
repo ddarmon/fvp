@@ -267,6 +267,8 @@ class TUI:
             if len(task_text) > max_task_len:
                 task_text = task_text[: max_task_len - 3] + "..."
             self.status = f"DO NOW: {task_text} | d=done D=archive S=stop"
+        elif self.strict_mode and self.phase == "waiting":
+            self.status = "'s' scan | 'a' add | '?' help | 'q' quit"
         elif self.strict_mode:
             self.status = "'s' scan | 'a' add | '?' help | 'q' quit"
         else:
@@ -493,6 +495,7 @@ class TUI:
             return False
 
         dotted_any = False
+        cancelled = False
 
         if not self.last_did:
             root_idx = ensure_root_dotted(self.tasks)
@@ -506,6 +509,7 @@ class TUI:
                 if self.tasks[i - 1].status != "done":
                     ans = ask_compare(i, last_dotted_index(self.tasks) or bench_idx)
                     if ans is None:
+                        cancelled = True
                         break
                     if ans:
                         self.tasks[i - 1].status = "dotted"
@@ -513,6 +517,9 @@ class TUI:
                 i += 1
 
             write_file(self.path, self.last_did, self.tasks)
+            if cancelled:
+                self.message("Scan stopped. Press 's' to resume, 'q' to quit.")
+                return None
             target = last_dotted_index(self.tasks)
             if target:
                 self.cursor = target
@@ -534,6 +541,7 @@ class TUI:
             if self.tasks[i - 1].status != "done":
                 ans = ask_compare(i, bench_idx)
                 if ans is None:
+                    cancelled = True
                     break
                 if ans:
                     self.tasks[i - 1].status = "dotted"
@@ -542,6 +550,9 @@ class TUI:
             i += 1
 
         write_file(self.path, self.last_did, self.tasks)
+        if cancelled:
+            self.message("Scan stopped. Press 's' to resume, 'q' to quit.")
+            return None
         target = last_dotted_index(self.tasks) if dotted_any else bench_idx
         if target:
             self.cursor = target
@@ -566,11 +577,12 @@ class TUI:
                         self.cursor = target
                         self.phase = "focus"
                         self.focus_only_one = True
+                        continue  # Only continue when entering focus
                     else:
                         self.focus_idx = None
                         self.focus_only_one = False
-                        self.phase = "idle"
-                    continue
+                        self.phase = "waiting"  # Don't auto-restart scan
+                    # Fall through to draw/getch so user can interact
                 elif self.phase == "focus":
                     self.focus_only_one = True
                 else:
@@ -621,7 +633,10 @@ class TUI:
 
             elif ch == ord("s"):
                 if not (self.strict_mode and self.phase == "focus"):
-                    self.scan()
+                    if self.strict_mode:
+                        self.phase = "idle"  # Trigger auto-scan on next iteration
+                    else:
+                        self.scan()
             elif ch == ord("r"):
                 if not (self.strict_mode and self.phase == "focus"):
                     self.reset_dots()
