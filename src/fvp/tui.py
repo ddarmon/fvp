@@ -22,12 +22,13 @@ from .core import (
     clear_all_dots,
     finish_effects_after_action,
     ensure_root_dotted,
+    shuffle_tasks,
 )
 
 HELP_TEXT = [
     "FVP Interactive - Keymap",
     "Movement:  up/k up   down/j down   PgUp/PgDn page   g top   G bottom   t root   n 'Do now'",
-    "Actions:   a add    e edit     d done   D archive-done   S stop->bottom   r reset   c clean   h hide [x]   M strict",
+    "Actions:   a add    e edit     d done   D archive-done   S stop->bottom   X shuffle   r reset   c clean   h hide [x]   M strict",
     "Scanning:  s start/resume scan (up/k=top, down/j=bottom, q/ESC stop)",
     "System:    R reload file       ? help    q quit",
     "",
@@ -324,13 +325,16 @@ class TUI:
         win = curses.newwin(3, self.width, self.height - 4, 0)
         win.erase()
         win.border()
-        win.addnstr(0, 2, " Input (Enter submits, ESC cancels) ", self.width - 4, curses.A_DIM)
-        win.addnstr(1, 2, (prompt + " ").ljust(self.width - 4), self.width - 4)
-        edit = curses.newwin(1, self.width - 4 - len(prompt) - 1, self.height - 3, len(prompt) + 3)
+        win.addnstr(0, 2, " Enter submits, ESC cancels ", self.width - 4, curses.A_BOLD)
+        win.addnstr(1, 2, prompt + " ", len(prompt) + 2)
+        win.refresh()
+
+        edit_width = max(20, self.width - 6 - len(prompt))
+        edit = curses.newwin(1, edit_width, self.height - 3, len(prompt) + 4)
         edit.keypad(True)
-        tb = curses.textpad.Textbox(edit, insert_mode=True)
         edit.addstr(0, 0, initial)
-        self.stdscr.refresh()
+        edit.refresh()
+        tb = curses.textpad.Textbox(edit, insert_mode=True)
 
         cancelled = {"value": False}
 
@@ -509,6 +513,25 @@ class TUI:
             self.focus_idx = None
             self.focus_only_one = False
 
+    def shuffle_list(self):
+        """Shuffle live tasks with confirmation."""
+        live_count = sum(1 for t in self.tasks if t.status != "done")
+        if live_count < 2:
+            self.message("Not enough live tasks to shuffle.")
+            return
+        if not self.confirm(f"Shuffle {live_count} live tasks?"):
+            self.message("Shuffle cancelled.")
+            return
+        shuffle_tasks(self.tasks)
+        self.last_did = None
+        write_file(self.path, self.last_did, self.tasks)
+        self.cursor = 1
+        self.message(f"Shuffled {live_count} live tasks.")
+        if self.strict_mode:
+            self.phase = "idle"
+            self.focus_idx = None
+            self.focus_only_one = False
+
     def archive_done(self):
         if not self.tasks:
             return
@@ -569,7 +592,7 @@ class TUI:
 
             max_w = self.width - 2
             title = "Scan Compare"
-            prompt_text = "up/k = top, down/j = bottom, q/ESC = stop"
+            prompt_text = "up/k = top, down/j = bottom, a = add, X = shuffle, q = stop"
 
             def elide(s: str, limit: int) -> str:
                 if len(s) <= limit:
@@ -602,6 +625,12 @@ class TUI:
             self.draw()
             if ch in (ord("q"), 27):
                 return None
+            # a = add task
+            if ch == ord("a"):
+                return "add"
+            # X = shuffle
+            if ch == ord("X"):
+                return "shuffle"
             # down/j = choose bottom (candidate) = True
             if ch in (curses.KEY_DOWN, ord("j")):
                 return True
@@ -627,6 +656,12 @@ class TUI:
                     if ans is None:
                         cancelled = True
                         break
+                    if ans == "add":
+                        self.add_task()
+                        continue  # Re-check same index after adding
+                    if ans == "shuffle":
+                        self.shuffle_list()
+                        return None
                     if ans:
                         self.tasks[i - 1].status = "dotted"
                         dotted_any = True
@@ -659,6 +694,12 @@ class TUI:
                 if ans is None:
                     cancelled = True
                     break
+                if ans == "add":
+                    self.add_task()
+                    continue  # Re-check same index after adding
+                if ans == "shuffle":
+                    self.shuffle_list()
+                    return None
                 if ans:
                     self.tasks[i - 1].status = "dotted"
                     bench_idx = i
@@ -759,6 +800,8 @@ class TUI:
             elif ch == ord("c"):
                 if not (self.strict_mode and self.phase == "focus"):
                     self.clean_done()
+            elif ch == ord("X"):
+                self.shuffle_list()
             elif ch == ord("R"):
                 self.reload()
             elif ch == ord("/"):
