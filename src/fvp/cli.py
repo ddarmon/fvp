@@ -19,6 +19,7 @@ from .core import (
     previous_dotted_above,
     clear_all_dots,
     finish_effects_after_action,
+    shuffle_tasks,
 )
 
 
@@ -145,6 +146,18 @@ def cmd_lists(args: argparse.Namespace) -> None:
         live_count = sum(1 for t in tasks if t.status != "done")
         total_count = len(tasks)
         print(f"  {name:20} {live_count:>3} live / {total_count:>3} total")
+
+
+def cmd_shuffle(args: argparse.Namespace) -> None:
+    """Shuffle live tasks randomly."""
+    _, tasks = read_file(args.file)
+    live_count = sum(1 for t in tasks if t.status != "done")
+    if live_count < 2:
+        print("Not enough live tasks to shuffle.")
+        return
+    shuffle_tasks(tasks)
+    write_file(args.file, None, tasks)
+    print(f"Shuffled {live_count} live tasks.")
 
 
 def cmd_next(args: argparse.Namespace) -> None:
@@ -294,6 +307,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_lists = sub.add_parser("lists", help="Show all available task lists")
     s_lists.set_defaults(func=cmd_lists)
+
+    s_shuffle = sub.add_parser("shuffle", help="Randomly reorder live tasks")
+    s_shuffle.set_defaults(func=cmd_shuffle)
 
     return p
 

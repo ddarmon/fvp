@@ -10,6 +10,7 @@ from .core import (
     previous_dotted_above,
     clear_all_dots,
     finish_effects_after_action,
+    shuffle_tasks,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "previous_dotted_above",
     "clear_all_dots",
     "finish_effects_after_action",
+    "shuffle_tasks",
 ]

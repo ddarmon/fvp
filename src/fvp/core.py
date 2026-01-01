@@ -1,5 +1,6 @@
 """FVP algorithm helpers (pure functions, no I/O)."""
 
+import random
 from typing import List, Optional, Tuple
 
 from .models import Task
@@ -62,3 +63,13 @@ def ensure_root_dotted(tasks: List[Task]) -> Optional[int]:
     if tasks[ridx - 1].status != "dotted":
         tasks[ridx - 1].status = "dotted"
     return ridx
+
+
+def shuffle_tasks(tasks: List[Task]) -> None:
+    """Shuffle live tasks in-place; done tasks moved to end, dots cleared."""
+    live = [t for t in tasks if t.status != "done"]
+    done = [t for t in tasks if t.status == "done"]
+    random.shuffle(live)
+    tasks.clear()
+    tasks.extend(live + done)
+    clear_all_dots(tasks)
