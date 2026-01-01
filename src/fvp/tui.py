@@ -6,8 +6,15 @@ import curses.ascii as ascii
 import os
 from typing import List, Optional, Tuple
 
-from .models import Task, DEFAULT_PATH
-from .storage import read_file, write_file, append_to_archive, ensure_file_exists
+from .models import Task, DEFAULT_DIR, DEFAULT_LIST, list_path
+from .storage import (
+    read_file,
+    write_file,
+    append_to_archive,
+    ensure_file_exists,
+    ensure_dir_exists,
+    get_available_lists,
+)
 from .core import (
     first_live_index,
     last_dotted_index,
@@ -31,12 +38,121 @@ HELP_TEXT = [
 ]
 
 
+def pick_list(stdscr) -> Optional[str]:
+    """Curses-based list picker. Returns list name or None if cancelled."""
+    curses.curs_set(0)
+    stdscr.keypad(True)
+
+    lists = get_available_lists()
+    if not lists:
+        # No lists exist - return default to create it
+        return DEFAULT_LIST
+
+    if len(lists) == 1:
+        # Only one list - use it directly
+        return lists[0]
+
+    # Multiple lists - show picker
+    cursor = 0
+    while True:
+        stdscr.erase()
+        height, width = stdscr.getmaxyx()
+
+        # Header
+        header = "Select a task list"
+        stdscr.addnstr(0, 0, header, width - 1, curses.A_BOLD)
+        stdscr.addnstr(1, 0, f"Lists in {DEFAULT_DIR}/", width - 1, curses.A_DIM)
+
+        # List items
+        top = 3
+        body_h = height - top - 2
+        scroll = max(0, cursor - body_h + 1)
+
+        for i, name in enumerate(lists[scroll : scroll + body_h]):
+            idx = scroll + i
+            path = list_path(name)
+            try:
+                _, tasks = read_file(path)
+                live = sum(1 for t in tasks if t.status != "done")
+                info = f"{live} live"
+            except Exception:
+                info = "?"
+
+            line = f"  {name:20} ({info})"
+            y = top + i
+            attrs = curses.A_REVERSE if idx == cursor else curses.A_NORMAL
+            stdscr.addnstr(y, 0, line, width - 1, attrs)
+
+        # Status
+        stdscr.hline(height - 2, 0, curses.ACS_HLINE, width)
+        status = "up/down: select | Enter: open | n: new list | q/ESC: quit"
+        stdscr.addnstr(height - 1, 0, status, width - 1)
+
+        stdscr.refresh()
+        ch = stdscr.getch()
+
+        if ch in (ord("q"), 27):
+            return None
+        elif ch in (curses.KEY_UP, ord("k")):
+            cursor = max(0, cursor - 1)
+        elif ch in (curses.KEY_DOWN, ord("j")):
+            cursor = min(len(lists) - 1, cursor + 1)
+        elif ch in (10, 13, curses.KEY_ENTER):
+            return lists[cursor]
+        elif ch == ord("n"):
+            # Create new list
+            name = prompt_new_list_name(stdscr)
+            if name:
+                return name
+
+
+def prompt_new_list_name(stdscr) -> Optional[str]:
+    """Prompt for a new list name."""
+    curses.curs_set(1)
+    height, width = stdscr.getmaxyx()
+
+    win = curses.newwin(3, min(50, width - 4), height // 2 - 1, max(2, (width - 50) // 2))
+    win.erase()
+    win.border()
+    win.addnstr(0, 2, " New list name ", 15, curses.A_BOLD)
+    win.addnstr(1, 2, "Name: ", 6)
+    win.refresh()
+
+    edit = curses.newwin(1, min(40, width - 12), height // 2, max(2, (width - 50) // 2) + 8)
+    edit.keypad(True)
+    tb = curses.textpad.Textbox(edit, insert_mode=True)
+
+    cancelled = {"value": False}
+
+    def validator(ch: int) -> int:
+        if ch in (10, 13):
+            return ascii.BEL
+        if ch == 27:
+            cancelled["value"] = True
+            return ascii.BEL
+        if ch in (curses.KEY_BACKSPACE, 127, 8):
+            return ascii.BS
+        return ch
+
+    s = tb.edit(validator)
+    curses.curs_set(0)
+
+    if cancelled["value"]:
+        return None
+
+    s = (s or "").strip()
+    # Sanitize: only allow alphanumeric, dash, underscore
+    s = "".join(c for c in s if c.isalnum() or c in "-_")
+    return s if s else None
+
+
 class TUI:
     """Curses TUI for managing a single FVP text file."""
 
-    def __init__(self, stdscr, path: str):
+    def __init__(self, stdscr, path: str, list_name: Optional[str] = None):
         self.stdscr = stdscr
         self.path = path
+        self.list_name = list_name  # For display in header
         self.last_did, self.tasks = read_file(self.path)
         self.archive_path = self.path + ".archive"
         self.cursor = 1
@@ -81,7 +197,7 @@ class TUI:
         self.height, self.width = self.stdscr.getmaxyx()
         self.update_status_for_phase()
 
-        header = "FVP"
+        header = f"FVP: {self.list_name}" if self.list_name else "FVP"
         self.stdscr.addnstr(0, 0, header, self.width - 1, curses.A_BOLD)
 
         # Subheader: minimal in strict mode, detailed in free mode
@@ -670,11 +786,27 @@ class TUI:
                 self.help_popup()
 
 
-def start_curses(path: str):
+def start_curses(path: str, list_name: Optional[str] = None):
     """Initialize curses and run TUI."""
 
     def _main(stdscr):
-        tui = TUI(stdscr, path)
+        tui = TUI(stdscr, path, list_name)
+        tui.run()
+
+    curses.wrapper(_main)
+
+
+def start_with_picker():
+    """Start curses with list picker, then run TUI."""
+
+    def _main(stdscr):
+        list_name = pick_list(stdscr)
+        if list_name is None:
+            # User cancelled
+            return
+        path = list_path(list_name)
+        ensure_file_exists(path)
+        tui = TUI(stdscr, path, list_name)
         tui.run()
 
     curses.wrapper(_main)
@@ -682,10 +814,20 @@ def start_curses(path: str):
 
 def main(path: Optional[str] = None) -> None:
     """TUI entry point."""
+    ensure_dir_exists()
+
     if path is None:
-        path = DEFAULT_PATH
-    ensure_file_exists(path)
-    start_curses(path)
+        # No explicit path - show picker (or use default if only one/no lists)
+        start_with_picker()
+    else:
+        # Explicit path given - extract list name if it's in ~/.fvp/
+        list_name = None
+        if path.startswith(DEFAULT_DIR) and path.endswith(".fvp"):
+            # Extract list name from path
+            basename = os.path.basename(path)
+            list_name = basename[:-4]  # strip .fvp
+        ensure_file_exists(path)
+        start_curses(path, list_name)
 
 
 if __name__ == "__main__":

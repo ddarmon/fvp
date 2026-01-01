@@ -15,16 +15,29 @@ No external dependencies---pure Python 3 with only standard library modules
 ## Running with uv
 
 ```bash
-# TUI (interactive, default)
+# TUI (interactive) - shows picker if multiple lists exist
 uv run fvp
-uv run fvp -f ~/mylist.txt
 
-# CLI subcommands
+# TUI with specific list
+uv run fvp -l work
+uv run fvp --list personal
+
+# TUI with full path override (backwards compatible)
+uv run fvp -f ~/custom/tasks.txt
+
+# List all available task lists
+uv run fvp lists
+
+# CLI subcommands (use default list if -l not specified)
 uv run fvp list
 uv run fvp add "Task text"
 uv run fvp next    # interactive scan
 uv run fvp done 3
 uv run fvp stop 3  # cross out and re-add at bottom
+
+# CLI with specific list
+uv run fvp -l work list
+uv run fvp -l work add "Work task"
 ```
 
 ## Package Structure
@@ -41,19 +54,33 @@ src/fvp/
 
 ## Module Responsibilities
 
-- **models.py**: `Task` dataclass, `DEFAULT_PATH`, `STATE_RE`, `TASK_RE`
+- **models.py**: `Task` dataclass, `DEFAULT_DIR`, `DEFAULT_LIST`, `list_path()`, `STATE_RE`, `TASK_RE`
 - **core.py**: Pure FVP algorithm functions (no I/O)
   - `first_live_index()`, `last_dotted_index()`, `previous_dotted_above()`
   - `clear_all_dots()`, `finish_effects_after_action()`, `ensure_root_dotted()`
-- **storage.py**: `read_file()`, `write_file()`, `append_to_archive()`, `ensure_file_exists()`
+- **storage.py**: `read_file()`, `write_file()`, `append_to_archive()`, `ensure_file_exists()`, `get_available_lists()`
 - **cli.py**: argparse setup, command handlers, `main()` entry point
-- **tui.py**: `TUI` class with curses rendering, Strict Mode state machine
+- **tui.py**: `TUI` class with curses rendering, list picker, Strict Mode state machine
+  - List picker: shown when multiple lists exist and no list specified
   - Strict Mode: minimal UI (just task text), algorithm invisible
   - Free Mode (press `M`): shows technical details for debugging
 
+## Directory Structure
+
+Task lists are stored in `~/.fvp/`:
+
+```
+~/.fvp/
+├── default.fvp          # Default list
+├── default.fvp.archive  # Archive for default list
+├── work.fvp             # Custom list
+├── work.fvp.archive
+└── personal.fvp
+```
+
 ## File Format
 
-Single plain-text file (default: `~/.fvp.txt`):
+Plain-text `.fvp` files:
 
     # FVP_STATE last_did=5
     [ ] open task

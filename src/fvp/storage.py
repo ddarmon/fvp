@@ -3,7 +3,7 @@
 import os
 from typing import List, Optional, Tuple
 
-from .models import Task, STATE_RE, TASK_RE
+from .models import Task, STATE_RE, TASK_RE, DEFAULT_DIR
 
 
 def read_file(path: str) -> Tuple[Optional[int], List[Task]]:
@@ -80,7 +80,25 @@ def append_to_archive(archive_path: str, text: str) -> None:
 
 def ensure_file_exists(path: str) -> None:
     """Ensure the directory and file exist with valid header."""
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    parent = os.path.dirname(os.path.abspath(path))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
             f.write("# FVP_STATE last_did=-1\n")
+
+
+def ensure_dir_exists() -> None:
+    """Ensure the ~/.fvp directory exists."""
+    os.makedirs(DEFAULT_DIR, exist_ok=True)
+
+
+def get_available_lists() -> List[str]:
+    """Return list of available list names (without .fvp extension)."""
+    if not os.path.isdir(DEFAULT_DIR):
+        return []
+    names = []
+    for fname in os.listdir(DEFAULT_DIR):
+        if fname.endswith(".fvp") and not fname.endswith(".fvp.archive"):
+            names.append(fname[:-4])  # strip .fvp
+    return sorted(names)

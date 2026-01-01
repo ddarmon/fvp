@@ -1,11 +1,18 @@
 """FVP command-line interface."""
 
 import argparse
+import os
 import sys
 from typing import List, Optional
 
-from .models import Task, DEFAULT_PATH
-from .storage import read_file, write_file, ensure_file_exists
+from .models import Task, DEFAULT_DIR, DEFAULT_LIST, list_path
+from .storage import (
+    read_file,
+    write_file,
+    ensure_file_exists,
+    ensure_dir_exists,
+    get_available_lists,
+)
 from .core import (
     first_live_index,
     last_dotted_index,
@@ -124,6 +131,22 @@ def cmd_path(args: argparse.Namespace) -> None:
     print(os.path.abspath(args.file))
 
 
+def cmd_lists(args: argparse.Namespace) -> None:
+    """List all available task lists in ~/.fvp/"""
+    lists = get_available_lists()
+    if not lists:
+        print(f"No lists found in {DEFAULT_DIR}/")
+        print(f"Run 'fvp' to create a default list.")
+        return
+    print(f"Available lists in {DEFAULT_DIR}/:\n")
+    for name in lists:
+        path = list_path(name)
+        _, tasks = read_file(path)
+        live_count = sum(1 for t in tasks if t.status != "done")
+        total_count = len(tasks)
+        print(f"  {name:20} {live_count:>3} live / {total_count:>3} total")
+
+
 def cmd_next(args: argparse.Namespace) -> None:
     """Interactive scan to find the next task."""
     last_did, tasks = read_file(args.file)
@@ -218,10 +241,17 @@ def build_parser() -> argparse.ArgumentParser:
         prog="fvp", description="Mark Forster FVP CLI (dot-chain)."
     )
     p.add_argument(
+        "-l",
+        "--list",
+        dest="list_name",
+        default=None,
+        help=f"Name of task list in {DEFAULT_DIR}/ (e.g., 'work' for work.fvp)",
+    )
+    p.add_argument(
         "-f",
         "--file",
-        default=DEFAULT_PATH,
-        help=f"Path to tasks file (default: {DEFAULT_PATH})",
+        default=None,
+        help="Full path to tasks file (overrides -l/--list)",
     )
     sub = p.add_subparsers(dest="cmd")
 
@@ -262,7 +292,24 @@ def build_parser() -> argparse.ArgumentParser:
     s_path = sub.add_parser("path", help="Show the absolute path to the tasks file")
     s_path.set_defaults(func=cmd_path)
 
+    s_lists = sub.add_parser("lists", help="Show all available task lists")
+    s_lists.set_defaults(func=cmd_lists)
+
     return p
+
+
+def resolve_file_path(args: argparse.Namespace) -> Optional[str]:
+    """Resolve the file path from -f or -l flags.
+
+    Returns None if no explicit path (caller should show picker or use default).
+    """
+    if args.file:
+        # -f/--file takes precedence
+        return args.file
+    if args.list_name:
+        # -l/--list specifies a named list
+        return list_path(args.list_name)
+    return None
 
 
 def main() -> None:
@@ -270,14 +317,35 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    ensure_file_exists(args.file)
+    # Ensure the ~/.fvp directory exists
+    ensure_dir_exists()
+
+    # Handle 'lists' command specially (no file needed)
+    if args.cmd == "lists":
+        args.func(args)
+        return
+
+    # Resolve file path
+    file_path = resolve_file_path(args)
 
     if args.cmd is None:
         # No subcommand: launch TUI
         from .tui import main as tui_main
 
-        tui_main(args.file)
+        if file_path:
+            # Explicit path given
+            ensure_file_exists(file_path)
+            tui_main(file_path)
+        else:
+            # No explicit path - let TUI handle picker or default
+            tui_main(None)
     else:
+        # CLI subcommand - need a file path
+        if file_path is None:
+            # Use default list
+            file_path = list_path(DEFAULT_LIST)
+        ensure_file_exists(file_path)
+        args.file = file_path
         args.func(args)
 
 
