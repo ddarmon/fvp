@@ -110,45 +110,42 @@ The app creates the `~/.fvp/` directory and your list file if they don't exist:
 
 ## Key commands
 
-  Key / Command      Action
-  ------------------ --------------------------------------------
-  **Navigation**
-  ↑ / ↓ / j / k      Move up / down
-  PgUp / PgDn        Page scroll
-  g / G              Jump to top / bottom
-  t                  Jump to root
-  n                  Jump to "Do now" (lowest dotted)
-  /                  Filter/search tasks
-  h                  Hide/show crossed-out `[x]` lines
-  **Task actions**
-  a                  Add task
-  e                  Edit task
-  d                  Mark done (cross out)
-  D                  Done & archive (remove from list, append to archive)
-  S                  Worked on -> move to bottom (cross out & re-add)
-  X                  Shuffle live tasks (randomize order)
-  r                  Reset dots & scanning state
-  c                  Clean crossed-out `[x]` lines
-  R                  Reload from disk
-  **FVP-specific**
-  s                  Run a dot-chain scan (see below for scan keys)
-  ?                  Show help
-  q / ESC            Quit
-  **Mode**
-  M                  Toggle Strict Mode (default ON). In Strict Mode,
-                     focus view shows only the current "Do now" task; only
-                     d / D / S are allowed. Filters/hide and most navigation
-                     are disabled while focused.
+| Key / Command | Action |
+| --- | --- |
+| **Navigation** | |
+| ↑ / ↓ / j / k | Move up / down |
+| PgUp / PgDn | Page scroll |
+| g / G | Jump to top / bottom |
+| t | Jump to root |
+| n | Jump to "Do now" (lowest dotted) |
+| / | Filter/search tasks |
+| h | Hide/show crossed-out `[x]` lines |
+| **Task actions** | |
+| a | Add task |
+| e | Edit task |
+| d | Mark done (cross out) |
+| D | Done & archive (remove from list, append to archive) |
+| S | Worked on -> move to bottom (cross out & re-add) |
+| X | Shuffle live tasks (randomize order) |
+| r | Reset dots & scanning state |
+| c | Clean crossed-out `[x]` lines |
+| R | Reload from disk |
+| **FVP-specific** | |
+| s | Run a dot-chain scan (see below for scan keys) |
+| ? | Show help |
+| q / ESC | Quit |
+| **Mode** | |
+| M | Toggle Strict Mode (default ON). In Strict Mode, focus view shows only the current "Do now" task; only d / D / S are allowed. Filters/hide and most navigation are disabled while focused. |
 
 **During scan (comparison dialog):**
 
-  Key                Action
-  ------------------ --------------------------------------------
-  up / k             Choose top (benchmark)
-  down / j           Choose bottom (candidate)
-  a                  Add a new task
-  X                  Shuffle all tasks
-  q / ESC            Stop scan
+| Key | Action |
+| --- | --- |
+| up / k | Choose top (benchmark) |
+| down / j | Choose bottom (candidate) |
+| a | Add a new task |
+| X | Shuffle all tasks |
+| q / ESC | Stop scan |
 
 Note: Prompts use Enter to submit and ESC to cancel.
 
@@ -158,33 +155,16 @@ Note: Prompts use Enter to submit and ESC to cancel.
 
 The TUI directly models the **eight rules** of Final Version Perfected:
 
-  -----------------------------------------------------------------------
-  FVP rule                            Implemented in app
-  ----------------------------------- -----------------------------------
-  1\. Keep one list; new items go at  `add` always appends to the end.
-  bottom.
-
-  2\. Root = first live item.         `ensure_root_dotted()` auto-dots
-                                      it.
-
-  3\. "Do I want this more than the   `scan()` asks you interactively via
-  last dotted?"                       keypress.
-
-  4\. Do the lowest dotted.           After each scan, the app shows "→
-                                      Do this now."
-
-  5\. If you stop early, cross out &  `S` key does exactly this.
-  re-add.
-
-  6\. After doing one, resume below   `done` + `scan()` sequence
-  it.                                 implements this rule.
-
-  7\. When root is done, new top item Detected in
-  becomes root.                       `finish_effects_after_action()`.
-
-  8\. If root impossible, cross out & `S` handles this (cross out & re-enter).
-  re-enter.
-  -----------------------------------------------------------------------
+| FVP rule | Implemented in app |
+| --- | --- |
+| 1\. Keep one list; new items go at bottom. | `add` always appends to the end. |
+| 2\. Root = first live item. | `ensure_root_dotted()` auto-dots it. |
+| 3\. "Do I want this more than the last dotted?" | `scan()` asks you interactively via keypress. |
+| 4\. Do the lowest dotted. | After each scan, the app shows "→ Do this now." |
+| 5\. If you stop early, cross out & re-add. | `S` key does exactly this. |
+| 6\. After doing one, resume below it. | `done` + `scan()` sequence implements this rule. |
+| 7\. When root is done, new top item becomes root. | Detected in `finish_effects_after_action()`. |
+| 8\. If root impossible, cross out & re-enter. | `S` handles this (cross out & re-enter). |
 
 ------------------------------------------------------------------------
 
