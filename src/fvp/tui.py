@@ -21,7 +21,7 @@ HELP_TEXT = [
     "FVP Interactive - Keymap",
     "Movement:  up/k up   down/j down   PgUp/PgDn page   g top   G bottom   t root   n 'Do now'",
     "Actions:   a add    e edit     d done   D archive-done   S stop->bottom   r reset   c clean   h hide [x]   M strict",
-    "Scanning:  s start/resume scan (y=yes, n=no, q/ESC stop)",
+    "Scanning:  s start/resume scan (up/k=top, down/j=bottom, q/ESC stop)",
     "System:    R reload file       ? help    q quit",
     "",
     "Prompts: Enter submits, ESC cancels",
@@ -79,30 +79,38 @@ class TUI:
         """Render header, subheader, task list, and status line."""
         self.stdscr.erase()
         self.height, self.width = self.stdscr.getmaxyx()
+        self.update_status_for_phase()
 
-        header = f"FVP Interactive  -  File: {os.path.abspath(self.path)}"
+        header = "FVP"
         self.stdscr.addnstr(0, 0, header, self.width - 1, curses.A_BOLD)
 
-        flags = []
-        root = first_live_index(self.tasks)
-        if root is not None:
-            flags.append(f"ROOT:{root}")
-        if self.last_did:
-            flags.append(f"JUST-DID:{self.last_did}")
-            pd = previous_dotted_above(self.tasks, self.last_did)
-            if pd:
-                flags.append(f"BENCHMARK:{pd}")
-        ld = last_dotted_index(self.tasks)
-        if ld:
-            flags.append(f"LOWEST-DOTTED:{ld}")
-        if self.filter_text:
-            flags.append(f"/{self.filter_text}")
-        if self.hide_done:
-            flags.append("HIDE-[x]")
+        # Subheader: minimal in strict mode, detailed in free mode
         if self.strict_mode:
-            flags.append("STRICT")
-            flags.append(f"PHASE:{self.phase.upper()}")
-        sub = "  ".join(flags) if flags else "No tasks yet - press 'a' to add."
+            if self.phase == "focus":
+                sub = ">>> WORK ON THIS <<<"
+            elif not self.tasks or first_live_index(self.tasks) is None:
+                sub = "No tasks. Press 'a' to add."
+            else:
+                sub = ""
+        else:
+            # Free mode: show technical details for debugging
+            flags = []
+            root = first_live_index(self.tasks)
+            if root is not None:
+                flags.append(f"ROOT:{root}")
+            if self.last_did:
+                flags.append(f"JUST-DID:{self.last_did}")
+                pd = previous_dotted_above(self.tasks, self.last_did)
+                if pd:
+                    flags.append(f"BENCHMARK:{pd}")
+            ld = last_dotted_index(self.tasks)
+            if ld:
+                flags.append(f"LOWEST-DOTTED:{ld}")
+            if self.filter_text:
+                flags.append(f"/{self.filter_text}")
+            if self.hide_done:
+                flags.append("HIDE-[x]")
+            sub = "  ".join(flags) if flags else "No tasks yet - press 'a' to add."
         self.stdscr.addnstr(1, 0, sub, self.width - 1, curses.A_DIM)
 
         top = 2
@@ -147,36 +155,47 @@ class TUI:
         elif cur_pos >= self.scroll + body_h:
             self.scroll = cur_pos - body_h + 1
 
-        for i in range(self.scroll, min(self.scroll + body_h, len(indices))):
-            idx = indices[i]
-            t = self.tasks[idx - 1]
-            marker = "[ ]" if t.status == "open" else "[.]" if t.status == "dotted" else "[x]"
-            left = f"{idx:>4}. {marker} "
-            right = t.text
-            avail = max(0, self.width - 1 - len(left))
-            if len(right) > avail:
-                right_disp = right[: max(avail - 1, 0)] + ("..." if avail > 0 else "")
-            else:
-                right_disp = right
-            line = left + right_disp
-            y = top + (i - self.scroll)
-            attrs = curses.A_NORMAL
-            root_idx = first_live_index(self.tasks)
-            cand_idx = self.scan_highlight[0] if self.scan_highlight else None
-            bench_idx = self.scan_highlight[1] if self.scan_highlight else None
-            if cand_idx == idx:
-                attrs |= self.COL_CAND
-            elif bench_idx == idx:
-                attrs |= self.COL_BENCH
-            elif root_idx == idx:
-                attrs |= self.COL_ROOT
-            elif t.status == "dotted":
-                attrs |= self.COL_DOTTED
-            if t.status == "done":
-                attrs |= curses.A_DIM
-            if idx == self.cursor:
-                attrs |= curses.A_REVERSE
-            self.stdscr.addnstr(y, 0, line, self.width - 1, attrs)
+        # Focus mode in strict: show just the task text centered
+        if self.focus_only_one and self.strict_mode and self.focus_idx and indices:
+            t = self.tasks[self.focus_idx - 1]
+            # Center the task text
+            task_text = t.text
+            if len(task_text) > self.width - 4:
+                task_text = task_text[: self.width - 7] + "..."
+            y = top + (body_h // 3)  # Position task in upper third
+            self.stdscr.addnstr(y, 0, task_text.center(self.width), self.width - 1, curses.A_BOLD)
+        else:
+            # Normal rendering with markers and indices
+            for i in range(self.scroll, min(self.scroll + body_h, len(indices))):
+                idx = indices[i]
+                t = self.tasks[idx - 1]
+                marker = "[ ]" if t.status == "open" else "[.]" if t.status == "dotted" else "[x]"
+                left = f"{idx:>4}. {marker} "
+                right = t.text
+                avail = max(0, self.width - 1 - len(left))
+                if len(right) > avail:
+                    right_disp = right[: max(avail - 1, 0)] + ("..." if avail > 0 else "")
+                else:
+                    right_disp = right
+                line = left + right_disp
+                y = top + (i - self.scroll)
+                attrs = curses.A_NORMAL
+                root_idx = first_live_index(self.tasks)
+                cand_idx = self.scan_highlight[0] if self.scan_highlight else None
+                bench_idx = self.scan_highlight[1] if self.scan_highlight else None
+                if cand_idx == idx:
+                    attrs |= self.COL_CAND
+                elif bench_idx == idx:
+                    attrs |= self.COL_BENCH
+                elif root_idx == idx:
+                    attrs |= self.COL_ROOT
+                elif t.status == "dotted":
+                    attrs |= self.COL_DOTTED
+                if t.status == "done":
+                    attrs |= curses.A_DIM
+                if idx == self.cursor:
+                    attrs |= curses.A_REVERSE
+                self.stdscr.addnstr(y, 0, line, self.width - 1, attrs)
 
         self.stdscr.hline(self.height - 2, 0, curses.ACS_HLINE, self.width)
         self.stdscr.addnstr(self.height - 1, 0, self.status[: self.width - 1], self.width - 1)
@@ -234,6 +253,24 @@ class TUI:
 
     def message(self, text: str):
         self.status = text
+
+    def update_status_for_phase(self):
+        """Set status bar message based on current phase."""
+        if not self.tasks or first_live_index(self.tasks) is None:
+            self.status = "No tasks. Press 'a' to add a task."
+            return
+
+        if self.strict_mode and self.phase == "focus" and self.focus_idx:
+            task_text = self.tasks[self.focus_idx - 1].text
+            # Truncate task text to fit
+            max_task_len = max(20, self.width - 45)
+            if len(task_text) > max_task_len:
+                task_text = task_text[: max_task_len - 3] + "..."
+            self.status = f"DO NOW: {task_text} | d=done D=archive S=stop"
+        elif self.strict_mode:
+            self.status = "'s' scan | 'a' add | '?' help | 'q' quit"
+        else:
+            self.status = "'s' scan | 'a' add | 'd' done | 'S' stop | '?' help"
 
     def reload(self):
         """Reload tasks from disk."""
@@ -409,12 +446,12 @@ class TUI:
             self.scan_highlight = (i_idx, bench_idx)
             self.scan_only_two = True
             self.draw()
-            cand_text = f"[{i_idx}] {self.tasks[i_idx - 1].text}"
-            bench_text = f"[{bench_idx}] {self.tasks[bench_idx - 1].text}" if bench_idx else "(none)"
+            cand_text = self.tasks[i_idx - 1].text
+            bench_text = self.tasks[bench_idx - 1].text if bench_idx else "(none)"
 
             max_w = self.width - 2
             title = "Scan Compare"
-            prompt_text = "y = choose bottom, n = choose top, q/ESC = stop"
+            prompt_text = "up/k = top, down/j = bottom, q/ESC = stop"
 
             def elide(s: str, limit: int) -> str:
                 if len(s) <= limit:
@@ -447,9 +484,11 @@ class TUI:
             self.draw()
             if ch in (ord("q"), 27):
                 return None
-            if chr(ch).lower() == "y":
+            # down/j = choose bottom (candidate) = True
+            if ch in (curses.KEY_DOWN, ord("j")):
                 return True
-            if chr(ch).lower() == "n":
+            # up/k = choose top (benchmark) = False
+            if ch in (curses.KEY_UP, ord("k")):
                 return False
             return False
 

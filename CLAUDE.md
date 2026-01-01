@@ -48,6 +48,8 @@ src/fvp/
 - **storage.py**: `read_file()`, `write_file()`, `append_to_archive()`, `ensure_file_exists()`
 - **cli.py**: argparse setup, command handlers, `main()` entry point
 - **tui.py**: `TUI` class with curses rendering, Strict Mode state machine
+  - Strict Mode: minimal UI (just task text), algorithm invisible
+  - Free Mode (press `M`): shows technical details for debugging
 
 ## File Format
 

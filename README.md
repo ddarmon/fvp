@@ -38,13 +38,11 @@ It opens a **text-based user interface (TUI)** where you can:
 -   **Add/edit/delete** tasks inline
 -   **Run the "dot-chain scan" interactively** with a focused two-item
     compare: only the two candidates are shown, in list order (upper =
-    benchmark, lower = candidate). Use `y` to choose the lower item or
-    `n` to choose the upper; `q`/`ESC` stops the scan.
+    benchmark, lower = candidate). Use `↓`/`j` to choose the lower item or
+    `↑`/`k` to choose the upper; `q`/`ESC` stops the scan.
 -   **Mark tasks done** (cross out) or **archive done** (remove from the
     list and append to an `*.archive` file). If you stop early, the task
     is crossed out and re-added to the bottom — preserving momentum.
--   **See your current root, benchmark, and lowest dotted task** at a
-    glance
 -   **Work entirely offline**, with a single plaintext file as your
     source of truth
 
@@ -123,7 +121,7 @@ The app creates your list file if it doesn't exist:
   c                  Clean crossed-out `[x]` lines
   R                  Reload from disk
   **FVP-specific**
-  s                  Run a dot-chain scan (y=choose bottom, n=choose top, q/ESC stops)
+  s                  Run a dot-chain scan (↑/k=top, ↓/j=bottom, q/ESC stops)
   ?                  Show help
   q / ESC            Quit
   **Mode**
@@ -250,39 +248,36 @@ No databases — still plain text.
 A quick end‑to‑end of the guided flow.
 
 1.  Start
-    -   Run `python3 fvp_tui.py -f ~/.fvp.txt`.
-    -   Strict Mode is ON by default. If there are no fresh dots, the
-        app auto‑starts a scan (header shows `STRICT PHASE:SCANNING`).
+    -   Run `uv run fvp`.
+    -   Strict Mode is ON by default. The app auto‑starts a scan.
 2.  Compare (two‑item view)
-    -   Only two tasks are shown in list order: upper = benchmark, lower
-        = candidate.
-    -   Press `y` to choose the lower item or `n` to choose the upper.
+    -   A modal shows two tasks: upper vs lower.
+    -   Press `↓`/`j` to choose the lower item or `↑`/`k` to choose the upper.
         `q`/`ESC` stops scanning.
 3.  Focus (single‑item view)
-    -   After scanning, the lowest dotted "Do now" appears alone.
-    -   Allowed actions: `d` = done (cross out), `D` = done & archive
-        (remove from list), `S` = stop early → move to bottom.
+    -   After scanning, your "Do now" task appears centered on screen.
+    -   The status bar shows: `d=done D=archive S=stop`
 4.  Auto‑resume
-    -   After `d`/`D`/`S`, the app returns to `PHASE:SCANNING` below
-        your last action and finds the next "Do now".
+    -   After `d`/`D`/`S`, the app resumes scanning below your last
+        action and finds the next task.
 5.  Optional: Free mode
     -   Press `M` to toggle Strict Mode OFF if you want free navigation,
-        filtering, and normal list view.
+        filtering, and the full list view with markers.
 
-Example (tiny):
+Example flow:
 
 ``` text
-# FVP_STATE last_did=-1
-[ ] Write README
-[ ] Respond to Sam
-[ ] Clean desk
+Scan modal:
+  "Respond to Sam" vs "Clean desk" → press ↑/k (choose upper)
 
-Scan:
-  Compare: Respond to Sam (upper) vs Clean desk (lower) → press n (choose upper)
-Focus:
-  “Do now” → Respond to Sam → press D (archive‑done)
-Auto:
-  Returns to scan below the action; next focus emerges.
+Focus view:
+  >>> WORK ON THIS <<<
+
+           Respond to Sam
+
+  DO NOW: Respond to Sam | d=done D=archive S=stop
+
+→ press D (archive‑done) → auto-resumes scan
 ```
 
 This keeps you in the FVP rhythm: compare → decide → focus → act →
