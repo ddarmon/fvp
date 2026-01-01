@@ -38,6 +38,10 @@ uv run fvp stop 3  # cross out and re-add at bottom
 # CLI with specific list
 uv run fvp -l work list
 uv run fvp -l work add "Work task"
+
+# Shuffle live tasks (randomize order for fresh start)
+uv run fvp shuffle
+uv run fvp -l work shuffle
 ```
 
 ## Package Structure
@@ -57,7 +61,7 @@ src/fvp/
 - **models.py**: `Task` dataclass, `DEFAULT_DIR`, `DEFAULT_LIST`, `list_path()`, `STATE_RE`, `TASK_RE`
 - **core.py**: Pure FVP algorithm functions (no I/O)
   - `first_live_index()`, `last_dotted_index()`, `previous_dotted_above()`
-  - `clear_all_dots()`, `finish_effects_after_action()`, `ensure_root_dotted()`
+  - `clear_all_dots()`, `finish_effects_after_action()`, `ensure_root_dotted()`, `shuffle_tasks()`
 - **storage.py**: `read_file()`, `write_file()`, `append_to_archive()`, `ensure_file_exists()`, `get_available_lists()`
 - **cli.py**: argparse setup, command handlers, `main()` entry point
 - **tui.py**: `TUI` class with curses rendering, list picker, Strict Mode state machine
@@ -94,3 +98,4 @@ Plain-text `.fvp` files:
 - **Scan**: Walk down list asking "want this more than benchmark?" -> dot if yes
 - **Do now**: Lowest dotted task
 - **Stop early**: Cross out and re-add same text at bottom (preserves momentum)
+- **Shuffle**: Randomize order of live tasks; clears dots for fresh start (TUI: `X`)

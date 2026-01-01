@@ -5,7 +5,7 @@ Version Perfected" productivity system.*
 
 ------------------------------------------------------------------------
 
-## 🌱 Why this exists
+## Why this exists
 
 Mark Forster's **Final Version Perfected (FVP)** is a deceptively simple
 task-management method built around a few powerful principles:
@@ -25,7 +25,7 @@ one list, no databases, no sync, no cloud.**
 
 ------------------------------------------------------------------------
 
-## ✨ What this app does
+## What this app does
 
 This program lets you manage your FVP list **interactively** from the
 terminal. By default it runs in a guided, restrictive flow (Strict Mode)
@@ -46,8 +46,9 @@ It opens a **text-based user interface (TUI)** where you can:
 -   **Work entirely offline**, with a single plaintext file as your
     source of truth
 
-All data lives in `~/.fvp.txt` (or a file you specify). Each line uses
-lightweight markers:
+All data lives in `~/.fvp/` as plain text `.fvp` files. You can have
+multiple context-dependent lists (e.g., `work.fvp`, `personal.fvp`).
+Each line uses lightweight markers:
 
     [ ] open
     [.] dotted
@@ -55,7 +56,7 @@ lightweight markers:
 
 ------------------------------------------------------------------------
 
-## 🧭 Quick start
+## Quick start
 
 ### 1. Installation
 
@@ -78,19 +79,27 @@ fvp
 ### 2. Run
 
 ``` bash
-# Launch TUI (default)
+# Launch TUI (shows list picker if multiple lists exist)
 uv run fvp
 
-# Use a custom file
+# Use a specific list by name
+uv run fvp -l work
+uv run fvp --list personal
+
+# Use a custom file path (backwards compatible)
 uv run fvp -f ~/projects/mylist.txt
+
+# Show all available lists
+uv run fvp lists
 
 # CLI subcommands
 uv run fvp list
 uv run fvp add "New task"
 uv run fvp done 3
+uv run fvp shuffle    # Randomize task order
 ```
 
-The app creates your list file if it doesn't exist:
+The app creates the `~/.fvp/` directory and your list file if they don't exist:
 
     # FVP_STATE last_did=-1
     [ ] Write README draft
@@ -99,7 +108,7 @@ The app creates your list file if it doesn't exist:
 
 ------------------------------------------------------------------------
 
-## 🎮 Key commands
+## Key commands
 
   Key / Command      Action
   ------------------ --------------------------------------------
@@ -116,12 +125,13 @@ The app creates your list file if it doesn't exist:
   e                  Edit task
   d                  Mark done (cross out)
   D                  Done & archive (remove from list, append to archive)
-  S                  Worked on → move to bottom (cross out & re-add)
+  S                  Worked on -> move to bottom (cross out & re-add)
+  X                  Shuffle live tasks (randomize order)
   r                  Reset dots & scanning state
   c                  Clean crossed-out `[x]` lines
   R                  Reload from disk
   **FVP-specific**
-  s                  Run a dot-chain scan (↑/k=top, ↓/j=bottom, q/ESC stops)
+  s                  Run a dot-chain scan (see below for scan keys)
   ?                  Show help
   q / ESC            Quit
   **Mode**
@@ -130,11 +140,21 @@ The app creates your list file if it doesn't exist:
                      d / D / S are allowed. Filters/hide and most navigation
                      are disabled while focused.
 
+**During scan (comparison dialog):**
+
+  Key                Action
+  ------------------ --------------------------------------------
+  up / k             Choose top (benchmark)
+  down / j           Choose bottom (candidate)
+  a                  Add a new task
+  X                  Shuffle all tasks
+  q / ESC            Stop scan
+
 Note: Prompts use Enter to submit and ESC to cancel.
 
 ------------------------------------------------------------------------
 
-## 🔁 The FVP logic inside
+## The FVP logic inside
 
 The TUI directly models the **eight rules** of Final Version Perfected:
 
@@ -168,9 +188,9 @@ The TUI directly models the **eight rules** of Final Version Perfected:
 
 ------------------------------------------------------------------------
 
-## 🧩 App architecture
+## App architecture
 
-The program is a **single file** organized in modular sections:
+The program is organized in modular sections:
 
 ### 1. **File storage**
 
@@ -210,15 +230,16 @@ Strict Mode adds a lightweight state machine (`idle` → `scanning` →
 
 ### 4. **Entry point**
 
--   `main()` --- handles `-f/--file` flag
--   Ensures file exists, then calls `start_curses()`
+-   `main()` --- handles `-l/--list` and `-f/--file` flags
+-   Shows list picker if multiple lists exist and no list specified
+-   Ensures directory and file exist, then calls `start_curses()`
 
 The logic is pure Python: **no dependencies**, **no config files**, **no
 databases**.
 
 ------------------------------------------------------------------------
 
-## ⚙️ Internal flow
+## Internal flow
 
 Here's the lifecycle in Strict Mode:
 
@@ -229,8 +250,8 @@ Here's the lifecycle in Strict Mode:
 3. Focus → "Do now" shows alone
 4. Act →
    - d: [x] crosses out (remains until hidden/cleaned)
-   - D: archive (remove from list; append to `~/.fvp.txt.archive`)
-   - S: stop early → [x] + re-add [ ] at bottom
+   - D: archive (remove from list; append to `.fvp.archive`)
+   - S: stop early -> [x] + re-add [ ] at bottom
 5. Auto-resume scan below last action; repeat
 ```
 
@@ -238,12 +259,12 @@ The file always remains a valid FVP list; you can open and edit it
 manually if desired.
 
 Archived items live in a plain text file next to your list (e.g.,
-`~/.fvp.txt.archive`). Each archived task is appended as `[x] <task>`.
-No databases — still plain text.
+`~/.fvp/default.fvp.archive`). Each archived task is appended as `[x] <task>`.
+No databases -- still plain text.
 
 ------------------------------------------------------------------------
 
-## ⏱️ 60‑Second Strict Mode Walkthrough
+## 60-Second Strict Mode Walkthrough
 
 A quick end‑to‑end of the guided flow.
 
@@ -285,7 +306,7 @@ resume.
 
 ------------------------------------------------------------------------
 
-## 🧠 Design philosophy
+## Design philosophy
 
 -   **Plain text as the API.** The list file is both your data store
     *and* your interface. You can version it with Git, edit in Vim, or
@@ -303,21 +324,28 @@ resume.
 
 ------------------------------------------------------------------------
 
-## 📁 File structure example
+## File structure example
 
 ``` bash
-~/.fvp.txt
-┌──────────────────────────────────────┐
-│ # FVP_STATE last_did=5               │
-│ [.] Draft intro                      │
-│ [ ] Reply to Sam                     │
-│ [ ] Clean whiteboard                 │
-│ [.] Outline slides                   │
-│ [x] Back up laptop                   │
-└──────────────────────────────────────┘
+~/.fvp/
+├── default.fvp           # Default list
+├── default.fvp.archive   # Archived tasks from default list
+├── work.fvp              # Work list
+└── personal.fvp          # Personal list
+```
+
+Each `.fvp` file is plain text:
+
+``` text
+# FVP_STATE last_did=5
+[.] Draft intro
+[ ] Reply to Sam
+[ ] Clean whiteboard
+[.] Outline slides
+[x] Back up laptop
 ```
 
 Each `[.]` marks a dotted task; `[x]` marks a crossed-out one. You can
-open this in any text editor; it's entirely human-readable.
+open these in any text editor; they're entirely human-readable.
 
 ------------------------------------------------------------------------
