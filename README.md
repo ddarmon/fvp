@@ -25,6 +25,15 @@ one list, no databases, no sync, no cloud.**
 
 ------------------------------------------------------------------------
 
+## References
+
+-   Mark Forster, "The Final Version Perfected (FVP) Instructions": <http://markforster.squarespace.com/blog/2021/11/16/the-final-version-perfected-fvp-instructions-reposted.html>
+-   LessWrong, "Final Version Perfected: An Underused Execution Algorithm": <https://www.lesswrong.com/posts/xfcKYznQ6B9yuxB28/final-version-perfected-an-underused-execution-algorithm>
+-   Mark Forster, "Final Version FAQs": <http://markforster.squarespace.com/final-version-faqs/>
+-   Beeminder Docs, "Mark Forster's Final Version": <https://doc.beeminder.com/fv>
+
+------------------------------------------------------------------------
+
 ## What this app does
 
 This program lets you manage your FVP list **interactively** from the
