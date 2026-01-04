@@ -28,14 +28,14 @@ from .core import (
 HELP_TEXT = [
     "FVP Interactive - Keymap",
     "Movement:  up/k up   down/j down   PgUp/PgDn page   g top   G bottom   t root   n 'Do now'",
-    "Actions:   a add    e edit     d done   D archive-done   S stop->bottom   X shuffle   r reset   c clean   h hide [x]   M strict",
+    "Actions:   a add    e edit     d done   D archive-done   S stop-for-now   X shuffle   r reset   c clean   h hide [x]   M strict",
     "Scanning:  s start/resume scan (up/k=top, down/j=bottom, q/ESC stop)",
     "System:    R reload file       ? help    q quit",
     "",
     "Prompts: Enter submits, ESC cancels",
     "Strict mode (default): guided scan -> focus; only d/D/S in focus. Toggle with 'M'.",
     "Markers: [ ] live    [.] dotted    [x] crossed-out",
-    "Rule of thumb: dot in the scan only; 'done' crosses out; 'stop' crosses out & re-adds at bottom.",
+    "Rule of thumb: dot in the scan only; 'done' crosses out; 'stop for now' crosses out & re-adds at bottom.",
 ]
 
 
@@ -166,7 +166,8 @@ class TUI:
         self.phase = "idle"
         self.focus_idx: Optional[int] = None
         self.focus_only_one: bool = False
-        self.status = "Press ? for help. s to scan; a to add; d to mark done; S to stop & re-add."
+        self.skip_in_scan: Optional[int] = None  # Index to skip in next scan (stopped task)
+        self.status = "Press ? for help. s to scan; a to add; d to mark done; S to stop for now."
         curses.curs_set(0)
         self.stdscr.keypad(True)
         self.height, self.width = self.stdscr.getmaxyx()
@@ -386,17 +387,18 @@ class TUI:
             max_task_len = max(20, self.width - 45)
             if len(task_text) > max_task_len:
                 task_text = task_text[: max_task_len - 3] + "..."
-            self.status = f"DO NOW: {task_text} | d=done D=archive S=stop"
+            self.status = f"DO NOW: {task_text} | d=done D=archive S=stop-for-now"
         elif self.strict_mode and self.phase == "waiting":
             self.status = "'s' scan | 'a' add | '?' help | 'q' quit"
         elif self.strict_mode:
             self.status = "'s' scan | 'a' add | '?' help | 'q' quit"
         else:
-            self.status = "'s' scan | 'a' add | 'd' done | 'S' stop | '?' help"
+            self.status = "'s' scan | 'a' add | 'd' done | 'S' stop-for-now | '?' help"
 
     def reload(self):
         """Reload tasks from disk."""
         self.last_did, self.tasks = read_file(self.path)
+        self.skip_in_scan = None
         self.message("Reloaded from disk.")
 
     def move_cursor(self, delta: int):
@@ -476,10 +478,12 @@ class TUI:
         self.tasks[idx - 1].status = "done"
         self.tasks.append(Task(text=text, status="open"))
         self.last_did, cleared = finish_effects_after_action(self.tasks, idx)
+        # Track the new task index so we skip it in the next scan
+        self.skip_in_scan = len(self.tasks)
         write_file(self.path, self.last_did, self.tasks)
         self.cursor = len(self.tasks)
         self.message(
-            f"Stopped and re-added: {idx} -> {len(self.tasks)}. "
+            f"Stopped for now and re-added: {idx} -> {len(self.tasks)}. "
             f"{'(root finished -> dots reset)' if cleared else ''}"
         )
         if self.strict_mode:
@@ -490,6 +494,7 @@ class TUI:
     def reset_dots(self):
         clear_all_dots(self.tasks)
         self.last_did = None
+        self.skip_in_scan = None
         write_file(self.path, self.last_did, self.tasks)
         self.message("Cleared dots & scanning state.")
         if self.strict_mode:
@@ -505,6 +510,7 @@ class TUI:
             return
         self.tasks = [t for t in self.tasks if t.status != "done"]
         self.last_did = None
+        self.skip_in_scan = None
         write_file(self.path, self.last_did, self.tasks)
         self.cursor = min(self.cursor, len(self.tasks)) if self.tasks else 1
         self.message("Removed crossed-out tasks. (Scanning state reset.)")
@@ -524,6 +530,7 @@ class TUI:
             return
         shuffle_tasks(self.tasks)
         self.last_did = None
+        self.skip_in_scan = None
         write_file(self.path, self.last_did, self.tasks)
         self.cursor = 1
         self.message(f"Shuffled {live_count} live tasks.")
@@ -651,7 +658,8 @@ class TUI:
             start_from = bench_idx + 1
             i = start_from
             while i <= len(self.tasks):
-                if self.tasks[i - 1].status != "done":
+                # Skip done tasks and the just-stopped task
+                if self.tasks[i - 1].status != "done" and i != self.skip_in_scan:
                     ans = ask_compare(i, last_dotted_index(self.tasks) or bench_idx)
                     if ans is None:
                         cancelled = True
@@ -671,6 +679,7 @@ class TUI:
             if cancelled:
                 self.message("Scan stopped. Press 's' to resume, 'q' to quit.")
                 return None
+            self.skip_in_scan = None  # Clear after scan completes fully
             target = last_dotted_index(self.tasks)
             if target:
                 self.cursor = target
@@ -689,7 +698,8 @@ class TUI:
 
         i = self.last_did + 1
         while i <= len(self.tasks):
-            if self.tasks[i - 1].status != "done":
+            # Skip done tasks and the just-stopped task
+            if self.tasks[i - 1].status != "done" and i != self.skip_in_scan:
                 ans = ask_compare(i, bench_idx)
                 if ans is None:
                     cancelled = True
@@ -710,6 +720,7 @@ class TUI:
         if cancelled:
             self.message("Scan stopped. Press 's' to resume, 'q' to quit.")
             return None
+        self.skip_in_scan = None  # Clear after scan completes fully
         target = last_dotted_index(self.tasks) if dotted_any else bench_idx
         if target:
             self.cursor = target

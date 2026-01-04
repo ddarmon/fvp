@@ -104,7 +104,7 @@ def cmd_stop(args: argparse.Namespace) -> None:
     last_did, reset = finish_effects_after_action(tasks, idx)
     write_file(args.file, last_did, tasks)
     print(
-        f"Stopped and re-added at bottom: {idx} -> {len(tasks)}. "
+        f"Stopped for now and re-added at bottom: {idx} -> {len(tasks)}. "
         f"{'(root finished -> dots reset)' if reset else ''}"
     )
 
@@ -288,7 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_done.add_argument("index", type=int)
     s_done.set_defaults(func=cmd_done)
 
-    s_stop = sub.add_parser("stop", help="Stop early: cross out & re-add at bottom")
+    s_stop = sub.add_parser("stop", help="Stop for now: cross out & re-add at bottom")
     s_stop.add_argument("index", type=int)
     s_stop.set_defaults(func=cmd_stop)
 
